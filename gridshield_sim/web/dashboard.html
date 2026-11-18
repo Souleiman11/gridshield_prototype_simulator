@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GridShield PV Simulator - Live</title>
+<style>
+:root{--bg:#f4f6f9;--card:#fff;--ink:#1c2430;--mut:#6b7686;--line:#e1e6ee;--grid:#e9edf3;
+  --c1:#2b6cb0;--c2:#e07b00;--c3:#2f9e6f;--c4:#c0392b;--c5:#8e5bd1;--c6:#0e9aa7;--ok:#2f9e6f;--bad:#c0392b}
+@media (prefers-color-scheme:dark){:root{--bg:#12161c;--card:#1b222b;--ink:#e6ebf2;--mut:#93a0b2;--line:#2b3441;--grid:#2a323d;
+  --c1:#6aa9ff;--c2:#ffa940;--c3:#4cc79a;--c4:#ff7b6b;--c5:#b794f4;--c6:#4fd1dd;--ok:#4cc79a;--bad:#ff7b6b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;padding:10px 16px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+header h1{font-size:16px;margin:0;font-weight:600}
+header .sub{color:var(--mut);font-size:12px}
+.ctl{display:flex;gap:6px;align-items:center;color:var(--mut);font-size:12px}
+select,button,input,textarea{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:6px;padding:4px 8px}
+button{cursor:pointer}button:hover{border-color:var(--c1)}
+.seg button{border-radius:0;margin-left:-1px}.seg button:first-child{border-radius:6px 0 0 6px;margin:0}.seg button:last-child{border-radius:0 6px 6px 0}
+.seg button.on{background:var(--c1);color:#fff;border-color:var(--c1)}
+.pill{padding:2px 10px;border-radius:99px;font-size:12px;border:1px solid var(--line)}
+.pill.live{color:var(--ok);border-color:var(--ok)}.pill.off{color:var(--bad);border-color:var(--bad)}
+main{padding:14px 16px;max-width:1500px;margin:0 auto}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:10px;margin-bottom:12px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+.kpi .l{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
+.kpi .v{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}.kpi .u{font-size:12px;color:var(--mut);font-weight:400}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0}
+.card h3{margin:0 0 4px;font-size:13px;font-weight:600;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center}
+.lg{font-size:11px;font-weight:400;color:var(--mut)}.lg::before{content:"";display:inline-block;width:14px;height:0;border-top:2px solid var(--c);margin-right:4px;vertical-align:middle}
+.lg.dash::before{border-top-style:dashed}.lg.dot::before{border-top-style:dotted}
+canvas{width:100%;height:200px;display:block}
+.badge{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12px;border:1px solid var(--line);margin:2px 4px 2px 0}
+.badge.active{border-color:var(--bad);color:var(--bad)}.badge.scheduled{color:var(--mut)}.badge.ended{color:var(--mut);opacity:.6}
+.frow{display:flex;gap:8px;align-items:center;padding:3px 0;border-bottom:1px dashed var(--line);font-size:12px}
+.bar{flex:0 0 70px;height:6px;background:var(--grid);border-radius:3px;overflow:hidden}.bar i{display:block;height:100%;background:var(--bad)}
+form.inj{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;font-size:12px}
+form.inj label{display:flex;flex-direction:column;gap:2px;color:var(--mut)}form.inj .wide{grid-column:1/-1}
+textarea{font-family:ui-monospace,Consolas,monospace;font-size:12px;height:52px;resize:vertical}
+#log{font:12px/1.5 ui-monospace,Consolas,monospace;max-height:230px;overflow:auto}
+#log div{border-bottom:1px dashed var(--line);padding:1px 0}.k-truth{color:var(--c2)}.k-link{color:var(--c4)}
+.muted{color:var(--mut)}
+body.blind .eng{display:none!important}
+.note{font-size:12px;color:var(--mut);margin:6px 0 0}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>GridShield PV Simulator <span class="pill off" id="conn">connecting…</span></h1>
+    <div class="sub" id="scn"></div></div>
+  <div class="ctl">Node <select id="node"></select></div>
+  <div class="ctl seg" title="GridShield view hides everything the simulator knows but a real system would not">
+    <button id="vEng" class="on">Engineer view</button><button id="vBlind">GridShield view</button></div>
+  <div class="ctl">Window <select id="win"><option value="600">10 min</option><option value="1800">30 min</option>
+    <option value="7200" selected>2 h</option><option value="21600">6 h</option><option value="0">All</option></select></div>
+  <div class="ctl">Speed <select id="spd"><option value="1">1×</option><option value="10">10×</option><option value="60">60×</option>
+    <option value="300">300×</option><option value="1000">1000×</option><option value="0">Max</option></select>
+    <button id="pause">Pause</button></div>
+  <div class="ctl" id="clock" style="margin-left:auto"></div>
+</header>
+<main>
+  <div class="kpis" id="kpis"></div>
+  <div class="grid">
+    <div class="card"><h3>DC power (W)<span class="lg" style="--c:var(--c1)">measured</span><span class="lg dash eng" style="--c:var(--c2)">true</span><span class="lg dot eng" style="--c:var(--c3)">true MPP</span></h3><canvas class="ch" id="c_p"></canvas></div>
+    <div class="card"><h3>Voltage (V)<span class="lg" style="--c:var(--c1)">measured</span><span class="lg dash eng" style="--c:var(--c2)">true</span></h3><canvas class="ch" id="c_v"></canvas></div>
+    <div class="card"><h3>Current (A)<span class="lg" style="--c:var(--c1)">measured</span><span class="lg dash eng" style="--c:var(--c2)">true</span></h3><canvas class="ch" id="c_i"></canvas></div>
+    <div class="card"><h3>Temperature (°C)<span class="lg" style="--c:var(--c1)">module</span><span class="lg" style="--c:var(--c6)">ambient</span><span class="lg dash eng" style="--c:var(--c2)">cell s0</span><span class="lg dash eng" style="--c:var(--c4)">cell s1</span><span class="lg dash eng" style="--c:var(--c5)">cell s2</span></h3><canvas class="ch" id="c_t"></canvas></div>
+    <div class="card"><h3>Irradiance (W/m²)<span class="lg" style="--c:var(--c1)">measured</span><span class="lg dash eng" style="--c:var(--c2)">true</span></h3><canvas class="ch" id="c_g"></canvas></div>
+    <div class="card"><h3><span id="ivt">I-V / P-V curve</span><span class="lg" style="--c:var(--c1)" id="lgI">current</span><span class="lg eng" style="--c:var(--c2)">power</span></h3><canvas id="c_iv"></canvas>
+      <p class="note" id="ivnote"></p></div>
+    <div class="card eng"><h3>Simulator truth: faults</h3><div id="flist"></div>
+      <form class="inj" id="inj">
+        <label>Fault type<select id="ftype"></select></label>
+        <label>Node<select id="fnode"></select></label>
+        <label>Ramp (s)<input id="framp" type="number" min="0" value="0"></label>
+        <label>Duration (s, empty = until cleared)<input id="fdur" type="number" min="1"></label>
+        <label class="wide">Parameters (JSON)<textarea id="fpar"></textarea></label>
+        <button type="submit" class="wide">Inject fault now</button>
+      </form>
+      <div class="note" id="fmsg"></div></div>
+    <div class="card"><h3>Event log <span class="lg">what changed, newest first</span></h3><div id="log"></div></div>
+  </div>
+  <p class="note">Solid lines = what GridShield receives over MQTT. Dashed/dotted = simulator ground truth (never published to GridShield). Gaps in solid lines are lost messages or disconnected sensors.</p>
+</main>
+<script>
+"use strict";
+const $=s=>document.querySelector(s);
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue('--'+n).trim();
+let INFO=null,NODE=null,BLIND=false,WIN=7200,tIdx=-1,mIdx=-1,IV={},FAULTS=[],STATE={},busy=false,HOVER=null;
+const store={},LOG=[];
+const mk=()=>({t:[],g:[],ta:[],tc:[[],[],[]],v:[],i:[],p:[],pm:[],lab:[],mt:[],mv:[],mi:[],mp:[],mtm:[],mta:[],mg:[],
+  last:null,mlast:null,lastSeq:null,gaps:0,late:0,rx:0,sent:0,deliv:0,prevLab:"none"});
+const nan=x=>x==null?NaN:x;
+const clock=(t,sec)=>new Date(INFO.start_ms+t*1000).toISOString().substr(11,sec?8:5);
+function lb(a,v){let lo=0,hi=a.length;while(lo<hi){const m=(lo+hi)>>1;if(a[m]<v)lo=m+1;else hi=m}return lo}
+function nice(lo,hi,n){if(!(hi>lo))hi=lo+1;const raw=(hi-lo)/n,p=Math.pow(10,Math.floor(Math.log10(raw))),f=raw/p;
+  const step=(f<1.5?1:f<3?2:f<7?5:10)*p,t=[];for(let v=Math.ceil(lo/step-1e-9)*step;v<=hi+1e-9;v+=step)t.push(+v.toFixed(10));
+  return{t,dec:Math.max(0,-Math.floor(Math.log10(step)+1e-9))}}
+function timeTicks(x0,x1){const S=[10,30,60,120,300,600,900,1800,3600,7200,10800,21600];const st=S.find(s=>(x1-x0)/s<=7)||21600;
+  const o=[];for(let v=Math.ceil(x0/st)*st;v<=x1;v+=st)o.push(v);return{t:o,sec:st<60}}
+
+function addLog(t,kind,node,text){LOG.unshift({t,kind,node,text});if(LOG.length>200)LOG.pop()}
+function addTruth(x){
+  const S=store[x.n]||(store[x.n]=mk());
+  S.t.push(x.t);S.g.push(x.g);S.ta.push(x.ta);S.v.push(x.v);S.i.push(x.i);S.p.push(x.p);S.pm.push(x.pm);S.lab.push(x.lab);
+  x.tc.forEach((c,k)=>{(S.tc[k]||(S.tc[k]=[])).push(c)});
+  S.sent++;S.deliv+=x.dl;S.last=x;
+  if(x.lab!==S.prevLab){
+    const a=new Set(S.prevLab.split(';')),b=new Set(x.lab.split(';'));
+    b.forEach(f=>{if(f!=='none'&&!a.has(f))addLog(x.t,'truth',x.n,'+ '+f)});
+    a.forEach(f=>{if(f!=='none'&&!b.has(f))addLog(x.t,'truth',x.n,'− '+f+' ended')});
+    S.prevLab=x.lab}
+}
+function addMsg(m){
+  const S=store[m.n]||(store[m.n]=mk());
+  let pos=S.mt.length;
+  if(pos&&m.t<S.mt[pos-1])pos=lb(S.mt,m.t);
+  const ins=(a,v)=>pos===a.length?a.push(v):a.splice(pos,0,v);
+  ins(S.mt,m.t);ins(S.mv,nan(m.v));ins(S.mi,nan(m.i));ins(S.mp,nan(m.p));ins(S.mtm,nan(m.tm));ins(S.mta,nan(m.ta));ins(S.mg,nan(m.g));
+  S.rx++;
+  if(!S.mlast||m.t>=S.mlast.t)S.mlast=m;
+  if(S.lastSeq!=null){
+    if(m.seq>S.lastSeq+1){const n=m.seq-S.lastSeq-1;S.gaps+=n;addLog(m.t,'link',m.n,`seq gap ${S.lastSeq}→${m.seq} (${n} missing)`)}
+    else if(m.seq<=S.lastSeq){S.late++;addLog(m.t,'link',m.n,`late or duplicate message seq ${m.seq}`)}
+  }
+  if(S.lastSeq==null||m.seq>S.lastSeq)S.lastSeq=m.seq;
+}
+
+/* ---------- generic canvas chart ---------- */
+function pts(xs,ys,i0,i1,x0,x1,pw){
+  const n=i1-i0,out=[];
+  if(n<=3*pw){for(let k=i0;k<i1;k++)out.push(xs[k],ys[k]);return out}
+  const mn=new Float64Array(pw).fill(Infinity),mx=new Float64Array(pw).fill(-Infinity),xn=new Float64Array(pw),xx=new Float64Array(pw);
+  for(let k=i0;k<i1;k++){const y=ys[k];if(!(y===y))continue;
+    let b=Math.floor((xs[k]-x0)/(x1-x0||1)*pw);b=b<0?0:b>=pw?pw-1:b;
+    if(y<mn[b]){mn[b]=y;xn[b]=xs[k]}if(y>mx[b]){mx[b]=y;xx[b]=xs[k]}}
+  for(let b=0;b<pw;b++){if(mn[b]===Infinity)continue;
+    if(xn[b]<=xx[b])out.push(xn[b],mn[b],xx[b],mx[b]);else out.push(xx[b],mx[b],xn[b],mn[b])}
+  return out}
+function chart(cv,cfg){
+  const dpr=window.devicePixelRatio||1,W=cv.clientWidth||300,H=cv.clientHeight||200;
+  if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr)}
+  const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,W,H);
+  const L=46,R=cfg.y2?46:10,T=8,B=20,pw=W-L-R,ph=H-T-B;cv._geo={L,R,pw};
+  const x0=cfg.x.min,x1=cfg.x.max,sx=v=>L+(v-x0)/(x1-x0||1)*pw;
+  const ymin=[Infinity,Infinity],ymax=[-Infinity,-Infinity];
+  const vis=cfg.series.map(s=>{if(!s.x.length)return[0,0];
+    const i0=cfg.time?Math.max(0,lb(s.x,x0)-1):0,i1=cfg.time?Math.min(s.x.length,lb(s.x,x1)+1):s.x.length,a=s.axis===2?1:0;
+    for(let k=i0;k<i1;k++){const y=s.y[k];if(y===y&&isFinite(y)){if(y<ymin[a])ymin[a]=y;if(y>ymax[a])ymax[a]=y}}return[i0,i1]});
+  const rng=a=>{const c=a?cfg.y2:cfg.y;let lo=c.min!=null?c.min:ymin[a],hi=c.max!=null?c.max:ymax[a];
+    if(!isFinite(lo)||!isFinite(hi)){lo=0;hi=1}
+    if(c.min==null){lo-=(hi-lo)*0.06||1;if(c.zero&&ymin[a]>=0)lo=0}
+    if(c.max==null)hi+=(hi-lo)*0.06||1;return[lo,hi]};
+  const yr=[rng(0),cfg.y2?rng(1):null],sy=(v,a)=>T+ph-(v-yr[a][0])/(yr[a][1]-yr[a][0]||1)*ph;
+  g.font='11px system-ui,sans-serif';g.lineWidth=1;
+  const yt=nice(yr[0][0],yr[0][1],4);g.textAlign='right';g.textBaseline='middle';
+  for(const v of yt.t){const y=sy(v,0);g.strokeStyle=css('grid');g.beginPath();g.moveTo(L,y);g.lineTo(L+pw,y);g.stroke();
+    g.fillStyle=css('mut');g.fillText(v.toFixed(yt.dec),L-5,y)}
+  if(cfg.y2){const t2=nice(yr[1][0],yr[1][1],4);g.textAlign='left';for(const v of t2.t){g.fillStyle=css('c2');g.fillText(v.toFixed(t2.dec),L+pw+5,sy(v,1))}}
+  g.textAlign='center';g.textBaseline='top';g.fillStyle=css('mut');
+  if(cfg.time){const tt=timeTicks(x0,x1);for(const v of tt.t){const x=sx(v);g.strokeStyle=css('grid');g.beginPath();g.moveTo(x,T);g.lineTo(x,T+ph);g.stroke();g.fillText(clock(v,tt.sec),x,T+ph+4)}}
+  else{const xt=nice(x0,x1,5);for(const v of xt.t){const x=sx(v);g.strokeStyle=css('grid');g.beginPath();g.moveTo(x,T);g.lineTo(x,T+ph);g.stroke();g.fillText(v.toFixed(xt.dec),x,T+ph+4)}}
+  g.save();g.beginPath();g.rect(L,T,pw,ph);g.clip();
+  cfg.series.forEach((s,k)=>{const[i0,i1]=vis[k];if(i1<=i0)return;const a=s.axis===2?1:0;
+    g.strokeStyle=css(s.color);g.lineWidth=s.w||1.4;g.setLineDash(s.dash||[]);g.beginPath();
+    const P=pts(s.x,s.y,i0,i1,x0,x1,Math.max(50,pw));let pen=false;
+    for(let q=0;q<P.length;q+=2){const y=P[q+1];if(!(y===y)){pen=false;continue}
+      const X=sx(P[q]),Y=sy(y,a);if(pen)g.lineTo(X,Y);else{g.moveTo(X,Y);pen=true}}
+    g.stroke()});
+  g.setLineDash([]);
+  (cfg.marks||[]).forEach(m=>{if(!(m.y===m.y))return;g.beginPath();g.arc(sx(m.x),sy(m.y,m.axis===2?1:0),m.r||4,0,6.3);
+    if(m.fill){g.fillStyle=css(m.color);g.fill()}else{g.strokeStyle=css(m.color);g.lineWidth=1.6;g.stroke()}});
+  (cfg.cloud||[]).forEach(c=>{g.fillStyle=css(c.color);g.globalAlpha=.35;for(let k=0;k<c.x.length;k++){if(c.y[k]===c.y[k]){g.beginPath();g.arc(sx(c.x[k]),sy(c.y[k],0),2,0,6.3);g.fill()}}g.globalAlpha=1});
+  g.restore();
+  if(cfg.time&&HOVER&&HOVER.id===cv.id){
+    const hx=x0+HOVER.frac*(x1-x0);if(HOVER.frac<0||HOVER.frac>1)return;const X=sx(hx);
+    g.strokeStyle=css('mut');g.beginPath();g.moveTo(X,T);g.lineTo(X,T+ph);g.stroke();
+    const lines=[clock(hx,true)];
+    cfg.series.forEach(s=>{if(!s.x.length)return;let k=lb(s.x,hx);if(k>0&&(k>=s.x.length||hx-s.x[k-1]<s.x[k]-hx))k--;
+      const y=s.y[k];lines.push(`${s.name||''}: ${y===y?y.toFixed(2):'—'}`)});
+    const bw=Math.max(...lines.map(l=>g.measureText(l).width))+12,bx=X>W/2?X-bw-8:X+8;
+    g.fillStyle=css('card');g.globalAlpha=.92;g.fillRect(bx,T+2,bw,lines.length*14+6);g.globalAlpha=1;
+    g.strokeStyle=css('line');g.strokeRect(bx,T+2,bw,lines.length*14+6);g.textAlign='left';g.textBaseline='top';g.fillStyle=css('ink');
+    lines.forEach((l,k)=>g.fillText(l,bx+6,T+5+k*14))}
+}
+
+/* ---------- rendering ---------- */
+function fmt(v,d){return v==null||!(v===v)?'—':v.toFixed(d)}
+function kpi(l,v,u){return `<div class="kpi${l.eng?' eng':''}"><div class="l">${l.t}</div><div class="v">${v}<span class="u"> ${u||''}</span></div></div>`}
+function avgRecent(S,key,win){const a=S[key],t=S.mt;if(!t.length)return NaN;const t1=t[t.length-1];let s=0,n=0;
+  for(let k=t.length-1;k>=0&&t[k]>=t1-win;k--){if(a[k]===a[k]){s+=a[k];n++}}return n?s/n:NaN}
+function render(){
+  if(!INFO||!NODE||!store[NODE])return;
+  const S=store[NODE],lastT=Math.max(S.t.length?S.t[S.t.length-1]:0,S.mt.length?S.mt[S.mt.length-1]:0);
+  let x1=lastT,x0=WIN?Math.max(0,x1-WIN):0;if(x1-x0<60)x1=x0+60;
+  $('#clock').textContent=`sim ${clock(lastT,true)} UTC · ${Math.round(100*lastT/(INFO.duration_s||1))}%`+(STATE.finished?' · finished':'');
+  const m=S.mlast,tr=S.last,nodeInfo=INFO.nodes.find(n=>n.id===NODE);
+  const link=S.sent?Math.round(100*S.rx/Math.max(1,S.lastSeq||S.sent)):100;
+  const ref=INFO.nodes.find(n=>n.role==='reference'&&n.id!==NODE);let vs='—';
+  if(ref&&store[ref.id]){const a=avgRecent(S,'mp',60),b=avgRecent(store[ref.id],'mp',60);if(a===a&&b>20)vs=(100*a/b).toFixed(1)+' %'}
+  $('#kpis').innerHTML=
+    kpi({t:'Irradiance'},fmt(m&&m.g,0),'W/m²')+kpi({t:'Module temp'},fmt(m&&m.tm,1),'°C')+
+    kpi({t:'Voltage'},fmt(m&&m.v,1),'V')+kpi({t:'Current'},fmt(m&&m.i,2),'A')+kpi({t:'Power'},fmt(m&&m.p,0),'W')+
+    kpi({t:'Efficiency (true)',eng:1},tr&&tr.g>20?(100*tr.p/(tr.g*nodeInfo.area)).toFixed(1):'—','%')+
+    kpi({t:'vs true MPP',eng:1},tr&&tr.pm>5?(100*tr.p/tr.pm).toFixed(1):'—','%')+
+    (ref?kpi({t:'Power vs '+ref.id},vs,''):'')+
+    kpi({t:'Link'},S.rx+'/'+(S.lastSeq||0),'rx/seq')+kpi({t:'Gaps · late'},S.gaps+' · '+S.late,'');
+  const E=!BLIND,ser=(x,y,c,name,extra)=>Object.assign({x,y,color:c,name},extra||{});
+  const tcfg={time:true,x:{min:x0,max:x1}};
+  chart($('#c_p'),Object.assign({series:[ser(S.mt,S.mp,'c1','measured')].concat(E?[ser(S.t,S.p,'c2','true',{dash:[5,3]}),ser(S.t,S.pm,'c3','true MPP',{dash:[1,3]})]:[]),y:{min:null,zero:true}},tcfg));
+  chart($('#c_v'),Object.assign({series:[ser(S.mt,S.mv,'c1','measured')].concat(E?[ser(S.t,S.v,'c2','true',{dash:[5,3]})]:[]),y:{}},tcfg));
+  chart($('#c_i'),Object.assign({series:[ser(S.mt,S.mi,'c1','measured')].concat(E?[ser(S.t,S.i,'c2','true',{dash:[5,3]})]:[]),y:{zero:true}},tcfg));
+  chart($('#c_t'),Object.assign({series:[ser(S.mt,S.mtm,'c1','module'),ser(S.mt,S.mta,'c6','ambient')].concat(E?[ser(S.t,S.tc[0],'c2','cell s0',{dash:[5,3]}),ser(S.t,S.tc[1],'c4','cell s1',{dash:[5,3]}),ser(S.t,S.tc[2]||[],'c5','cell s2',{dash:[5,3]})]:[]),y:{}},tcfg));
+  chart($('#c_g'),Object.assign({series:[ser(S.mt,S.mg,'c1','measured')].concat(E?[ser(S.t,S.g,'c2','true',{dash:[5,3]})]:[]),y:{zero:true}},tcfg));
+  // I-V
+  const iv=IV[NODE],cvIV=$('#c_iv');
+  if(E&&iv&&tr){
+    const P=iv.v.map((v,k)=>v>0?v*iv.i[k]:NaN),vmax=Math.max(1,tr.voc*1.04);
+    chart(cvIV,{x:{min:0,max:vmax},y:{min:0,max:Math.max(1,tr.isc*1.1)},y2:{min:0,max:Math.max(10,tr.pm*1.15)},
+      series:[ser(iv.v,iv.i,'c1','I'),ser(iv.v,P,'c2','P',{axis:2})],
+      marks:[{x:tr.v,y:tr.i,color:'c4',fill:1,r:5},{x:tr.vm,y:tr.im*1,color:'c3',r:6},{x:m&&m.v,y:m&&m.i,color:'c1',r:4}]});
+    $('#ivt').textContent='I-V / P-V curve (truth)';
+    $('#ivnote').innerHTML=`<span style="color:var(--c4)">●</span> true operating point &nbsp; <span style="color:var(--c3)">○</span> global MPP (${tr.vm.toFixed(1)} V) &nbsp; <span style="color:var(--c1)">○</span> measured &nbsp; P-V peaks: <b>${tr.np}</b> &nbsp; MPPT: ${tr.mode}`;
+  }else{
+    const k0=Math.max(0,S.mv.length-300),xs=S.mv.slice(k0),ys=S.mi.slice(k0);
+    chart(cvIV,{x:{min:0,max:Math.max(45,...xs.filter(Number.isFinite))*1.05},y:{min:0,max:Math.max(2,...ys.filter(Number.isFinite))*1.15},series:[],
+      cloud:[{x:xs,y:ys,color:'c1'}],marks:[{x:m&&m.v,y:m&&m.i,color:'c1',fill:1,r:5}]});
+    $('#ivt').textContent='Measured operating points (V, I)';
+    $('#ivnote').textContent=BLIND?'Last 300 measurements as GridShield sees them. The true I-V curve is hidden in this view.':'';
+  }
+  // faults
+  if(E){
+    $('#flist').innerHTML=FAULTS.length?FAULTS.map(f=>`<div class="frow"><span class="badge ${f.state}">${f.type}</span><span class="muted">${f.id} · ${f.node}</span>
+      <span class="bar"><i style="width:${Math.round(f.sev*100)}%"></i></span><span class="muted">${f.state}</span>
+      ${f.state!=='ended'?`<button data-clr="${f.id}" style="margin-left:auto;padding:1px 8px">clear</button>`:''}</div>`).join(''):'<span class="muted">no faults defined</span>';
+    $('#flist').querySelectorAll('[data-clr]').forEach(b=>b.onclick=()=>post({cmd:'clear',id:b.dataset.clr}));
+  }
+  $('#log').innerHTML=LOG.slice().sort((a,b)=>b.t-a.t).filter(e=>(E||e.kind==='link')&&(e.node===NODE||e.node==='*')).slice(0,60)
+    .map(e=>`<div class="k-${e.kind}">${clock(e.t,true)} <b>${e.node}</b> ${e.text}</div>`).join('')||'<span class="muted">nothing yet</span>';
+  $('#pause').textContent=STATE.paused?'Resume':'Pause';
+  if(document.activeElement!==$('#spd')){const o=[...$('#spd').options].find(o=>+o.value===STATE.speed);if(o)$('#spd').value=o.value}
+}
+
+/* ---------- network ---------- */
+async function post(cmd){
+  try{const r=await fetch('/api/cmd',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cmd)});
+    const d=await r.json();$('#fmsg').textContent=d.error?('Rejected: '+d.error):(cmd.cmd==='inject'?'Fault injected.':'');return d}
+  catch(e){$('#fmsg').textContent='Request failed: '+e}}
+async function poll(){
+  if(busy)return;busy=true;
+  try{const r=await fetch(`/api/poll?t=${tIdx}&m=${mIdx}`);const d=await r.json();
+    tIdx=d.t_idx;mIdx=d.m_idx;d.truth.forEach(addTruth);d.msgs.forEach(addMsg);IV=d.iv;FAULTS=d.faults;STATE=d.state;
+    $('#conn').textContent=STATE.finished?'finished':'live';$('#conn').className='pill '+(STATE.finished?'':'live');
+  }catch(e){$('#conn').textContent='offline';$('#conn').className='pill off'}
+  busy=false}
+async function init(){
+  INFO=await (await fetch('/api/info')).json();
+  $('#scn').textContent=`${INFO.scenario} — ${INFO.description}`;
+  const ns=INFO.nodes.map(n=>`<option value="${n.id}">${n.id} (${n.role})</option>`).join('');
+  $('#node').innerHTML=ns;NODE=INFO.nodes[0].id;
+  $('#fnode').innerHTML=ns+'<option value="*">all nodes</option>';
+  $('#ftype').innerHTML=INFO.fault_types.map(t=>`<option>${t}</option>`).join('');
+  const fill=()=>$('#fpar').value=JSON.stringify(INFO.presets[$('#ftype').value]||{});
+  $('#ftype').onchange=fill;$('#ftype').value='partial_shading';fill();
+  $('#node').onchange=e=>{NODE=e.target.value;render()};
+  $('#win').onchange=e=>{WIN=+e.target.value;render()};
+  $('#spd').onchange=e=>post({cmd:'set_speed',speed:+e.target.value});
+  $('#pause').onclick=()=>post({cmd:STATE.paused?'resume':'pause'});
+  const setView=b=>{BLIND=b;document.body.classList.toggle('blind',b);$('#vBlind').classList.toggle('on',b);$('#vEng').classList.toggle('on',!b);render()};
+  $('#vEng').onclick=()=>setView(false);$('#vBlind').onclick=()=>setView(true);
+  $('#inj').onsubmit=async e=>{e.preventDefault();let params;
+    try{params=JSON.parse($('#fpar').value||'{}')}catch(x){$('#fmsg').textContent='Parameters are not valid JSON';return}
+    const f={type:$('#ftype').value,node:$('#fnode').value,ramp_s:+$('#framp').value||0,params};
+    if($('#fdur').value)f.duration_s=+$('#fdur').value;await post({cmd:'inject',fault:f})};
+  document.querySelectorAll('canvas.ch').forEach(cv=>{
+    cv.addEventListener('mousemove',e=>{const g=cv._geo;if(!g)return;HOVER={id:cv.id,frac:(e.offsetX-g.L)/g.pw};render()});
+    cv.addEventListener('mouseleave',()=>{HOVER=null;render()})});
+  setInterval(poll,400);setInterval(render,300);poll();
+}
+init();
+</script>
+</body>
+</html>

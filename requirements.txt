@@ -1,0 +1,4 @@
+numpy>=1.24
+paho-mqtt>=1.6        # MQTT publishing (v1 and v2 APIs supported)
+matplotlib>=3.7       # live dashboard and static plots
+pytest>=7.0           # tests
